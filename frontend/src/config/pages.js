@@ -1,5 +1,5 @@
 import {
-  BarChart3, ClipboardList, GitBranch, History, LayoutDashboard, Play, ShieldCheck, UploadCloud,
+  BarChart3, Bot, ClipboardList, GitBranch, History, LayoutDashboard, Play, ShieldCheck, UploadCloud,
 } from "lucide-react";
 
 // Sidebar groups, titles, one-line descriptions and the minimum role to see a page.
@@ -16,6 +16,8 @@ export const PAGES = [
     description: "Test a scenario before acting — nothing changes in the hospital." },
   { key: "decision", label: "Decision Center", group: "Act", Icon: ClipboardList,
     description: "Review recommendations and record decisions for the audit trail." },
+  { key: "ask", label: "Ask AI", group: "Act", Icon: Bot,
+    description: "Ask questions in plain language, answered from hospital data with sources." },
   { key: "upload", label: "Data Upload", group: "Data & admin", Icon: UploadCloud, minRole: "Analyst",
     description: "Add daily operational data, check it, and undo uploads if needed." },
   { key: "audit", label: "Audit Log", group: "Data & admin", Icon: ShieldCheck, minRole: "Admin",

@@ -3,6 +3,7 @@ from collections import defaultdict
 
 from sqlalchemy.orm import Session
 
+from app.core.config import CAPACITY
 from app.db.models import OPTIONAL_RESOURCE_COLUMNS, ResourceSnapshot
 from app.seed.generate_data import SNAPSHOTS
 
@@ -44,6 +45,11 @@ def _aggregate(rows: list[dict]) -> dict:
             out[key] = min(values)
         else:
             out[key] = round(sum(values) / len(values), 4)
+    # Occupancy is snapped to whole beds so every chart, forecast and alert
+    # agrees with the counts on the cards (e.g. ICU 0.728 -> 15/20 -> 0.75).
+    for key, total in (("bed_occupancy", CAPACITY["beds"]), ("icu_occupancy", CAPACITY["icu"])):
+        if out.get(key) is not None:
+            out[key] = round(round(out[key] * total) / total, 4)
     return out
 
 

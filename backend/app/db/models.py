@@ -1,3 +1,4 @@
+import json
 from datetime import datetime, timezone
 from sqlalchemy import Column, Integer, String, Float, DateTime, Text, Boolean, ForeignKey
 from sqlalchemy.orm import relationship
@@ -456,4 +457,75 @@ class AlertState(Base):
             "updated_by": self.updated_by,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
             "note": self.note or "",
+        }
+
+
+class RagChunk(Base):
+    """A retrievable piece of anonymised hospital knowledge for the chatbot."""
+    __tablename__ = "rag_chunks"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    chunk_key = Column(String(200), unique=True, index=True, nullable=False)
+    doc_type = Column(String(40), index=True, nullable=False)  # snapshot_week, decision, alert, audit, policy, event
+    title = Column(String(255), nullable=False)
+    content = Column(Text, nullable=False)
+    department = Column(String(100), nullable=True, index=True)
+    date_start = Column(String(20), nullable=True)
+    date_end = Column(String(20), nullable=True)
+    batch_ids = Column(Text, nullable=True)  # ",3,7," style list for LIKE matching
+    min_role = Column(String(20), default="Viewer")
+    content_hash = Column(String(64), nullable=False)
+    embedding = Column(Text, nullable=True)  # JSON list (portable); pgvector column added when available
+    embedding_model = Column(String(80), nullable=True)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
+
+    def to_source(self):
+        return {
+            "id": self.chunk_key,
+            "type": self.doc_type,
+            "title": self.title,
+            "department": self.department,
+            "date_start": self.date_start,
+            "date_end": self.date_end,
+        }
+
+
+class ChatSession(Base):
+    __tablename__ = "chat_sessions"
+
+    id = Column(String(40), primary_key=True)
+    username = Column(String(100), index=True, nullable=False)
+    title = Column(String(200), default="New chat")
+    created_at = Column(DateTime, default=utc_now)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "title": self.title,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+
+class ChatMessage(Base):
+    __tablename__ = "chat_messages"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    session_id = Column(String(40), ForeignKey("chat_sessions.id"), index=True, nullable=False)
+    role = Column(String(20), nullable=False)  # user, assistant
+    content = Column(Text, nullable=False)
+    extras = Column(Text, nullable=True)  # JSON: sources, charts, actions, confidence
+    feedback = Column(String(10), nullable=True)  # up, down
+    created_at = Column(DateTime, default=utc_now)
+
+    def to_dict(self):
+        extras = json.loads(self.extras) if self.extras else {}
+        return {
+            "id": self.id,
+            "role": self.role,
+            "content": self.content,
+            "feedback": self.feedback,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            **extras,
         }

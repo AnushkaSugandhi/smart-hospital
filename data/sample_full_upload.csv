@@ -1,0 +1,4 @@
+date,department,admissions,emergency_cases,bed_occupancy,icu_occupancy,doctor_workload,staff_workload,ventilators_total,ventilators_in_use,ot_total,ot_in_use,nurses_on_duty,nurses_required,oxygen_stock_hours,blood_a_pos,blood_a_neg,blood_b_pos,blood_b_neg,blood_o_pos,blood_o_neg,blood_ab_pos,blood_ab_neg
+2026-10-20,Surgery,41,6,0.82,0.80,11.2,8.9,10,7,6,4,30,32,52,14,5,16,4,18,6,8,3
+2026-10-21,Surgery,43,6,0.85,0.84,11.6,9.1,10,8,6,5,30,33,36,13,5,15,4,17,5,8,3
+2026-10-22,Surgery,45,7,0.88,0.86,12.1,9.4,10,9,6,5,31,34,22,12,4,14,3,15,4,7,2

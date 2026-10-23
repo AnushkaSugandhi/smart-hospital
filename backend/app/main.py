@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.api import auth as auth_routes
+from app.api import chat as chat_routes
 from app.api import data as data_routes
 from app.api import ops as ops_routes
 from app.core.config import public_config
@@ -26,12 +27,10 @@ from app.db.models import (
     DecisionRecord,
     DecisionOutcome,
 )
-from app.services import audit_service, snapshot_service
+from app.services import audit_service, data_events, rag_service, snapshot_service  # noqa: F401 (rag registers listeners)
 from app.services.cascade_service import analyze_cascade
-from app.services.forecast_service import forecast_values
 from app.services.hindsight_service import similarity_score
-from app.services.recommendation_service import baseline_from_state
-from app.services.simulation_service import simulate_scenario
+from app.services.queries import forecast_payload, run_simulation_payload
 from app.services.state_service import compute_current_state, historical_events
 from app.services.upload_service import mask_value
 
@@ -84,6 +83,7 @@ app.add_middleware(
 app.include_router(auth_routes.router)
 app.include_router(data_routes.router)
 app.include_router(ops_routes.router)
+app.include_router(chat_routes.router)
 
 
 # Pydantic Schemas
@@ -196,29 +196,6 @@ def hindsight_search(payload: HindsightRequest, db: Session = Depends(get_db),
     }
 
 
-def forecast_payload(db: Session, metric: str = "admissions", horizon: int = 7,
-                     department: Optional[str] = None) -> dict:
-    rows = snapshot_service.series(db, department)
-    values = [float(row[metric]) for row in rows if row.get(metric) is not None]
-    if not values:
-        metric = "admissions"
-        values = [float(row["admissions"]) for row in rows]
-    horizon = max(1, min(int(horizon), 30))
-
-    result = forecast_values(values, horizon)
-    return {
-        "metric": metric,
-        "horizon": horizon,
-        "historical": values,
-        "dates": [row["date"] for row in rows if row.get(metric) is not None],
-        **result,
-        "capacity_note": (
-            "Compare bed occupancy with 90% demonstration capacity threshold; "
-            "this is not an official clinical guideline."
-        ),
-    }
-
-
 @app.get("/api/v1/forecast")
 def forecast(metric: str = "admissions", horizon: int = 7, department: Optional[str] = None,
              db: Session = Depends(get_db), user: CurrentUser = Depends(viewer)):
@@ -243,30 +220,6 @@ def cascadeflow(payload: CascadeRequest, user: CurrentUser = Depends(viewer)):
         ],
         "edges": nodes,
         "note": "CascadeFlow factors quantify cross-department operational strain propagation.",
-    }
-
-
-def run_simulation_payload(db: Session, payload: SimulationRequest) -> dict:
-    baseline_state = compute_current_state(db)
-    baseline = baseline_from_state(baseline_state)
-
-    simulated = simulate_scenario(
-        baseline,
-        payload.admissions_change_pct,
-        payload.emergency_cases_change_pct,
-        payload.available_beds_change_pct,
-        payload.icu_capacity_change_pct,
-        payload.doctor_availability_change_pct,
-        payload.staff_availability_change_pct,
-    )
-
-    return {
-        "name": payload.name,
-        "department": payload.department,
-        "baseline": {**baseline, "risk_score": baseline_state["risk"]["score"],
-                     "risk_level": baseline_state["risk"]["level"]},
-        "simulated": simulated,
-        "message": "Aggregate operational scenario estimate. It does not automatically modify hospital resources.",
     }
 
 
@@ -305,6 +258,7 @@ def record_decision(payload: DecisionRequest, db: Session = Depends(get_db),
         db.refresh(record)
         audit_service.record(db, user, "decision_create", "decision", record.id,
                              {"issue": payload.issue, "action": payload.administrator_action})
+        data_events.data_changed(db, reason="decision")
         return {
             "status": "recorded",
             "decision": record.to_dict(),

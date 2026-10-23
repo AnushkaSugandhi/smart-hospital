@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.core.security import CurrentUser, analyst, viewer
 from app.db.database import get_db
 from app.db.models import AlertState, DecisionRecord
-from app.services import audit_service
+from app.services import audit_service, data_events
 from app.services.alert_service import apply_state, set_state
 from app.services.recommendation_service import next_actions
 from app.services.state_service import compute_current_state
@@ -54,6 +54,7 @@ def acknowledge_alert(alert_id: str, payload: AckRequest = AckRequest(), db: Ses
     state = set_state(db, alert_id, "acknowledged", user, note=payload.note)
     audit_service.record(db, user, "alert_acknowledge", "alert", alert_id,
                          {"severity": alert["severity"], "reason": alert["reason"], "note": payload.note})
+    data_events.data_changed(db, reason="alert_state")
     return {"status": "acknowledged", "state": state.to_dict()}
 
 
@@ -64,6 +65,7 @@ def snooze_alert(alert_id: str, payload: SnoozeRequest = SnoozeRequest(), db: Se
     state = set_state(db, alert_id, "snoozed", user, minutes=payload.minutes)
     audit_service.record(db, user, "alert_snooze", "alert", alert_id,
                          {"minutes": payload.minutes, "severity": alert["severity"]})
+    data_events.data_changed(db, reason="alert_state")
     return {"status": "snoozed", "state": state.to_dict()}
 
 
@@ -103,6 +105,7 @@ def decide_recommendation(rec_id: str, payload: RecommendationDecision, db: Sess
     set_state(db, rec_id, "approved" if approved else "dismissed", user, note=payload.note)
     audit_service.record(db, user, f"recommendation_{payload.decision}", "decision", decision.id,
                          {"recommendation": action["title"], "impact": action["impact"]})
+    data_events.data_changed(db, reason="decision")
     return {"status": "approved" if approved else "dismissed", "decision": decision.to_dict()}
 
 

@@ -22,6 +22,9 @@ import Simulator from "./pages/Simulator";
 import DecisionCenter from "./pages/DecisionCenter";
 import DataUpload from "./pages/DataUpload";
 import AuditLog from "./pages/AuditLog";
+import AskAI from "./pages/AskAI";
+import { ChatProvider } from "./chat/ChatContext";
+import ChatPanel from "./chat/ChatPanel";
 
 const PAGE_COMPONENTS = {
   overview: Overview,
@@ -32,6 +35,7 @@ const PAGE_COMPONENTS = {
   decision: DecisionCenter,
   upload: DataUpload,
   audit: AuditLog,
+  ask: AskAI,
 };
 
 function Shell() {
@@ -96,6 +100,7 @@ function Shell() {
       </main>
 
       <AlertsPanel open={alertsOpen} onClose={() => setAlertsOpen(false)} />
+      <ChatPanel />
       <GlobalSearch open={searchOpen} onClose={() => setSearchOpen(false)} onOpenAlerts={openAlerts} />
       {summary && pageKey === "overview" && <Tour forceOpen={tourRequested} onDone={() => setTourRequested(false)} />}
 
@@ -119,7 +124,9 @@ export default function App() {
   if (!user) return <LoginPage onLogin={setUser} />;
   return (
     <AppProvider user={user} onLogout={() => { clearSession(); setUser(null); }}>
-      <Shell />
+      <ChatProvider>
+        <Shell />
+      </ChatProvider>
     </AppProvider>
   );
 }

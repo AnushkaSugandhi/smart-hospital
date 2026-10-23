@@ -140,3 +140,35 @@ export async function login(username, password) {
 }
 
 export const getCurrentUser = () => request("/auth/me");
+
+// ---- Ask Smart Hospital (chat) ------------------------------------------------
+export const getChatSuggestions = () => request("/chat/suggestions");
+export const getChatSessions = () => request("/chat/sessions");
+export const getChatSession = (id) => request(`/chat/sessions/${encodeURIComponent(id)}`);
+export const deleteChatSession = (id) => request(`/chat/sessions/${encodeURIComponent(id)}`, { method: "DELETE" });
+export const sendChatFeedback = (messageId, value) => request(`/chat/messages/${messageId}/feedback`, json("POST", { value }));
+
+// Streams server-sent events from POST /chat, calling onEvent(type, data).
+export async function streamChat(message, sessionId, onEvent, signal) {
+  const response = await rawRequest("/chat", { ...json("POST", { message, session_id: sessionId }), signal });
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    let idx;
+    while ((idx = buffer.indexOf("\n\n")) >= 0) {
+      const raw = buffer.slice(0, idx);
+      buffer = buffer.slice(idx + 2);
+      let type = "message";
+      let data = "";
+      for (const line of raw.split("\n")) {
+        if (line.startsWith("event:")) type = line.slice(6).trim();
+        else if (line.startsWith("data:")) data += line.slice(5).trim();
+      }
+      if (data) onEvent(type, JSON.parse(data));
+    }
+  }
+}

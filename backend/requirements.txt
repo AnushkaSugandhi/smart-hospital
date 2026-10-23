@@ -11,3 +11,4 @@ sqlalchemy
 psycopg2-binary; sys_platform != "win32"
 httpx
 pytest
+anthropic>=2.2
