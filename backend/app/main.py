@@ -28,7 +28,10 @@ from app.db.models import (
 from app.seed.generate_data import SNAPSHOTS
 from app.services.cascade_service import analyze_cascade
 from app.services.forecast_service import forecast_values
+from app.core.config import public_config
+from app.services.alert_service import threshold_alerts
 from app.services.hindsight_service import similarity_score
+from app.services.metrics_service import core_metrics
 from app.services.risk_engine import calculate_risk_score
 from app.services.simulation_service import simulate_scenario
 from app.services.upload_service import (
@@ -137,51 +140,18 @@ def compute_current_state(db: Optional[Session] = None) -> dict:
         latest_snapshot = SNAPSHOTS[-1]
 
     s = latest_snapshot
-    total_beds = 120
-    occupied_beds = round(total_beds * s["bed_occupancy"])
-    available_beds = total_beds - occupied_beds
+    metrics = core_metrics(s)
 
-    total_icu = 20
-    occupied_icu = round(total_icu * s["icu_occupancy"])
-    available_icu = total_icu - occupied_icu
-
-    total_doctors = 25
-    overloaded = sum(1 for _ in range(total_doctors) if s["doctor_workload"] > 10)
-    emergency_pressure = min(round((s["emergency_cases"] / 20) * 100, 1), 100)
-
+    # Risk uses the same count-derived percentages the cards display.
     risk = calculate_risk_score(
-        s["bed_occupancy"],
-        s["icu_occupancy"],
+        metrics["beds"]["occupancy_pct"] / 100,
+        metrics["icu"]["occupancy_pct"] / 100,
         s["doctor_workload"],
         s["staff_workload"],
-        emergency_pressure,
+        metrics["emergency"]["pressure_pct"],
     )
 
-    alerts = []
-    if s["bed_occupancy"] >= 0.80:
-        alerts.append({
-            "id": "BED-001",
-            "severity": "critical",
-            "resource_type": "Beds",
-            "reason": "Bed occupancy is above the 80% demonstration warning threshold.",
-            "suggested_action": "Review bed allocation and expected step-down discharges.",
-        })
-    if s["icu_occupancy"] >= 0.80:
-        alerts.append({
-            "id": "ICU-001",
-            "severity": "warning",
-            "resource_type": "ICU",
-            "reason": "ICU occupancy is elevated.",
-            "suggested_action": "Review ICU capacity and incoming emergency demand.",
-        })
-    if s["doctor_workload"] >= 10:
-        alerts.append({
-            "id": "DOC-001",
-            "severity": "warning",
-            "resource_type": "Doctors",
-            "reason": "Average doctor workload is elevated above safe operational target.",
-            "suggested_action": "Review compatible shift distribution and float pool coverage.",
-        })
+    alerts = threshold_alerts(metrics, s["date"])
 
     current_features = {
         "admissions": s["admissions"],
@@ -248,31 +218,8 @@ def compute_current_state(db: Optional[Session] = None) -> dict:
         "date": s["date"],
         "department": s.get("department", "Emergency"),
         "risk": risk,
-        "beds": {
-            "total": total_beds,
-            "occupied": occupied_beds,
-            "available": available_beds,
-            "occupancy_pct": round(s["bed_occupancy"] * 100, 1),
-        },
-        "icu": {
-            "total": total_icu,
-            "occupied": occupied_icu,
-            "available": available_icu,
-            "occupancy_pct": round(s["icu_occupancy"] * 100, 1),
-        },
-        "doctors": {
-            "total": total_doctors,
-            "available": total_doctors - overloaded,
-            "overloaded": overloaded,
-            "average_patients_per_doctor": s["doctor_workload"],
-        },
-        "staff": {
-            "average_patients_per_staff": s["staff_workload"],
-        },
-        "emergency": {
-            "active_cases": s["emergency_cases"],
-            "pressure_pct": emergency_pressure,
-        },
+        **metrics,
+        "snapshot": current_features,
         "alerts": alerts,
         "hindsight": {
             "date": best["date"],
@@ -312,6 +259,12 @@ def health(db: Session = Depends(get_db)):
     }
 
 
+@app.get("/api/v1/config")
+def get_config():
+    """Thresholds, colours, units and formulas shared with the frontend."""
+    return public_config()
+
+
 @app.get("/api/v1/dashboard/summary")
 def dashboard_summary(db: Session = Depends(get_db)):
     return compute_current_state(db)
@@ -336,14 +289,7 @@ def resource_history(db: Session = Depends(get_db)):
 @app.post("/api/v1/hindsight/search")
 def hindsight_search(payload: HindsightRequest, db: Session = Depends(get_db)):
     state = compute_current_state(db)
-    current = payload.current or {
-        "admissions": state["beds"]["occupied"],
-        "emergency_cases": state["emergency"]["active_cases"],
-        "bed_occupancy": state["beds"]["occupancy_pct"] / 100,
-        "icu_occupancy": state["icu"]["occupancy_pct"] / 100,
-        "doctor_workload": state["doctors"]["average_patients_per_doctor"],
-        "staff_workload": state["staff"]["average_patients_per_staff"],
-    }
+    current = payload.current or state["snapshot"]
 
     events = []
     try:

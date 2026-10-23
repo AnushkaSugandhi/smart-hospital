@@ -1,5 +1,7 @@
 import React from "react";
 import DataUpload from "./pages/DataUpload";
+import InfoTip from "./components/InfoTip";
+import { RISK_STYLE, STATUS_STYLE } from "./config/metrics";
 import { useEffect, useMemo, useState } from "react";
 import {
   Activity,
@@ -48,11 +50,19 @@ const nav = [
   ["Data Upload", "upload", Activity],
 ];
 
-function Kpi({ title, value, subtitle, tone = "" }) {
+function Kpi({ title, value, unit, subtitle, status, info }) {
+  const style = STATUS_STYLE[status] || STATUS_STYLE.normal;
   return (
     <div className="card kpi">
-      <div className="muted">{title}</div>
-      <div className={`kpi-value ${tone}`}>{value}</div>
+      <div className="muted kpi-title">
+        {title}
+        {info && <InfoTip label={`How ${title} is calculated`}>{info}</InfoTip>}
+      </div>
+      <div className={`kpi-value tone-${style.tone}`}>
+        {value}
+        {unit && <span className="kpi-unit"> {unit}</span>}
+      </div>
+      <div className={`status-text tone-${style.tone}`}>{style.label}</div>
       <div className="muted">{subtitle}</div>
     </div>
   );
@@ -295,9 +305,30 @@ function App() {
             </p>
           </div>
           <div className="risk">
-            <span>RESOURCE RISK</span>
-            <strong>{dashboard.risk.score}</strong>
-            <small>{dashboard.risk.level.toUpperCase()}</small>
+            <span>
+              RESOURCE RISK{" "}
+              <InfoTip label="How the risk score is calculated">
+                Weighted sum of factor pressures, each scaled 0–100.
+                {dashboard.risk.breakdown.map((f) => (
+                  <span key={f.key} className="tip-line">
+                    {f.label}: {f.pressure} × {f.weight} = {f.contribution} — {f.formula}
+                  </span>
+                ))}
+              </InfoTip>
+            </span>
+            <strong className={`tone-${(RISK_STYLE[dashboard.risk.level] || RISK_STYLE.low).tone}`}>
+              {dashboard.risk.score}
+              <small className="risk-scale"> / {dashboard.risk.scale.max}</small>
+            </strong>
+            <small>{dashboard.risk.level_label.toUpperCase()}</small>
+            <ul className="risk-breakdown" aria-label="Risk score breakdown">
+              {dashboard.risk.breakdown.map((f) => (
+                <li key={f.key}>
+                  <span>{f.label}</span>
+                  <b>+{f.contribution}</b>
+                </li>
+              ))}
+            </ul>
           </div>
         </section>
 
@@ -305,26 +336,32 @@ function App() {
           <Kpi
             title="Bed occupancy"
             value={`${dashboard.beds.occupancy_pct}%`}
-            subtitle={`${dashboard.beds.available} available of ${dashboard.beds.total}`}
-            tone="critical"
+            subtitle={`${dashboard.beds.available} available of ${dashboard.beds.total} beds`}
+            status={dashboard.beds.status}
+            info={dashboard.beds.formula}
           />
           <Kpi
             title="ICU occupancy"
             value={`${dashboard.icu.occupancy_pct}%`}
-            subtitle={`${dashboard.icu.available} available of ${dashboard.icu.total}`}
-            tone="warning"
+            subtitle={`${dashboard.icu.available} available of ${dashboard.icu.total} ICU beds`}
+            status={dashboard.icu.status}
+            info={dashboard.icu.formula}
           />
           <Kpi
             title="Doctor workload"
             value={dashboard.doctors.average_patients_per_doctor}
-            subtitle={`${dashboard.doctors.overloaded} flagged overloaded`}
-            tone="warning"
+            unit="patients per doctor"
+            subtitle={`~${dashboard.doctors.overloaded} of ${dashboard.doctors.total} doctors overloaded (est.)`}
+            status={dashboard.doctors.status}
+            info={dashboard.doctors.formula}
           />
           <Kpi
             title="Emergency cases"
             value={dashboard.emergency.active_cases}
-            subtitle={`${dashboard.emergency.pressure_pct}% pressure`}
-            tone="critical"
+            unit="active cases"
+            subtitle={`${dashboard.emergency.pressure_pct}% of ${dashboard.emergency.capacity} ED bays in use`}
+            status={dashboard.emergency.status}
+            info={dashboard.emergency.formula}
           />
         </section>
 

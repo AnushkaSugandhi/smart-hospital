@@ -1,3 +1,6 @@
+from app.services.risk_engine import calculate_risk_score
+
+
 def simulate_scenario(
     baseline: dict,
     admissions_change_pct: float,
@@ -37,35 +40,28 @@ def simulate_scenario(
         * (1 + admission_factor * 0.45)
         / max(1 + staff_factor, 0.1)
     )
-
-    risk_score = (
-        simulated_bed * 0.30
-        + simulated_icu * 0.30
-        + min(simulated_doctor / 15 * 100, 100) * 0.20
-        + min(simulated_staff / 12 * 100, 100) * 0.10
-        + min(
-            baseline["emergency_pressure_pct"]
-            * (1 + emergency_cases_change_pct / 100),
-            100,
-        ) * 0.10
+    simulated_emergency = min(
+        baseline["emergency_pressure_pct"] * (1 + emergency_cases_change_pct / 100),
+        100,
     )
 
-    risk_score = round(min(max(risk_score, 0), 100), 1)
-
-    if risk_score >= 81:
-        level = "critical"
-    elif risk_score >= 61:
-        level = "high"
-    elif risk_score >= 31:
-        level = "moderate"
-    else:
-        level = "low"
+    # Same scoring as the live dashboard so baseline and scenario are comparable.
+    risk = calculate_risk_score(
+        max(simulated_bed, 0) / 100,
+        max(simulated_icu, 0) / 100,
+        max(simulated_doctor, 0),
+        max(simulated_staff, 0),
+        max(simulated_emergency, 0),
+    )
 
     return {
         "bed_occupancy_pct": round(max(simulated_bed, 0), 2),
         "icu_occupancy_pct": round(max(simulated_icu, 0), 2),
         "doctor_workload": round(max(simulated_doctor, 0), 2),
         "staff_workload": round(max(simulated_staff, 0), 2),
-        "risk_score": risk_score,
-        "risk_level": level,
+        "emergency_pressure_pct": round(max(simulated_emergency, 0), 2),
+        "risk_score": risk["score"],
+        "risk_level": risk["level"],
+        "risk_level_label": risk["level_label"],
+        "risk_breakdown": risk["breakdown"],
     }
