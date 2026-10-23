@@ -79,7 +79,7 @@ def _oxygen_card(rows):
     return {
         "key": "oxygen", "label": "Oxygen stock", "available": True, "as_of": row["date"],
         "value": hours, "unit": "hours of supply",
-        "summary": f"~{hours:g} hours at current usage",
+        "summary": f"About {hours:g} hours at current usage",
         "formula": (f"hours of supply remaining; warning below {LOW_STOCK['oxygen_hours_warning']:g} h, "
                     f"critical below {LOW_STOCK['oxygen_hours_critical']:g} h"),
         "low_stock": status != "normal",

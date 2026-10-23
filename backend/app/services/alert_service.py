@@ -91,8 +91,8 @@ def _humanize_hours(hours: float) -> str:
     if hours < 1:
         return "under an hour"
     if hours < 36:
-        return f"~{round(hours)} hours"
-    return f"~{round(hours / 24, 1):g} days"
+        return f"about {round(hours)} hours"
+    return f"about {round(hours / 24, 1):g} days"
 
 
 _PREDICTIVE = [

@@ -26,7 +26,7 @@ _BLOOD_DESC = {g: f"Units of {g.replace('blood_', '').replace('_pos', '+').repla
                for g in OPTIONAL_RESOURCE_COLUMNS if g.startswith("blood_")}
 
 COLUMN_SCHEMA = [
-    {"name": "date", "type": "date", "required": True, "description": "Snapshot date, e.g. 2026-10-23", "example": "2026-10-23"},
+    {"name": "date", "type": "date", "required": True, "description": "Snapshot date (YYYY-MM-DD)", "example": "2026-10-23"},
     {"name": "department", "type": "text", "required": True, "description": "Department name", "example": "Emergency"},
     {"name": "admissions", "type": "number", "required": True, "description": "Admissions that day", "example": 74},
     {"name": "emergency_cases", "type": "number", "required": True, "description": "Active emergency cases", "example": 16},
