@@ -2,9 +2,14 @@ from datetime import date, timedelta
 import math
 import random
 
+BLOOD_BASE = {"a_pos": 28, "a_neg": 9, "b_pos": 30, "b_neg": 8, "o_pos": 36, "o_neg": 11, "ab_pos": 14, "ab_neg": 6}
+
 
 def generate_snapshots(days: int = 30) -> list[dict]:
     random.seed(42)
+    # Separate generator for the optional resources so the core series stays
+    # identical to earlier versions of the seed.
+    extra = random.Random(7)
     rows = []
     start = date.today() - timedelta(days=days - 1)
 
@@ -18,7 +23,9 @@ def generate_snapshots(days: int = 30) -> list[dict]:
         icu_occ = min(0.97, max(0.50, 0.68 + (emergency - 14) * 0.012))
         doctor = round(admissions / 6.2, 2)
         staff = round(admissions / 8.7, 2)
-        rows.append({
+
+        nurses_required = round(48 + admissions * 0.2)
+        row = {
             "date": str(day),
             "admissions": admissions,
             "emergency_cases": emergency,
@@ -26,7 +33,18 @@ def generate_snapshots(days: int = 30) -> list[dict]:
             "icu_occupancy": round(icu_occ, 3),
             "doctor_workload": doctor,
             "staff_workload": staff,
-        })
+            "ventilators_total": 24,
+            "ventilators_in_use": min(24, round(24 * icu_occ * 0.8 + extra.uniform(-2, 2))),
+            "ot_total": 8,
+            "ot_in_use": max(0, min(8, round(4 + wave / 2 + extra.uniform(-1, 1.5)))),
+            "nurses_on_duty": nurses_required - extra.choice([-2, 0, 1, 2, 3, 4]),
+            "nurses_required": nurses_required,
+            # Oxygen is resupplied every 5 days and drains in between.
+            "oxygen_stock_hours": round(96 - (i % 5) * 16 + extra.uniform(-3, 3), 1),
+        }
+        for group, base in BLOOD_BASE.items():
+            row[f"blood_{group}"] = max(0, round(base - (i % 7) * base * 0.06 + extra.uniform(-2, 2)))
+        rows.append(row)
 
     return rows
 

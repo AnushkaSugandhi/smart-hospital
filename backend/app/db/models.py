@@ -150,6 +150,17 @@ class Bed(Base):
         }
 
 
+# Optional resource columns (nullable so older CSVs and rows remain valid).
+OPTIONAL_RESOURCE_COLUMNS = [
+    "ventilators_total", "ventilators_in_use",
+    "ot_total", "ot_in_use",
+    "nurses_on_duty", "nurses_required",
+    "oxygen_stock_hours",
+    "blood_a_pos", "blood_a_neg", "blood_b_pos", "blood_b_neg",
+    "blood_o_pos", "blood_o_neg", "blood_ab_pos", "blood_ab_neg",
+]
+
+
 class ResourceSnapshot(Base):
     __tablename__ = "resource_snapshots"
 
@@ -162,10 +173,29 @@ class ResourceSnapshot(Base):
     icu_occupancy = Column(Float, nullable=False)
     doctor_workload = Column(Float, nullable=False)
     staff_workload = Column(Float, nullable=False)
+    ventilators_total = Column(Float, nullable=True)
+    ventilators_in_use = Column(Float, nullable=True)
+    ot_total = Column(Float, nullable=True)
+    ot_in_use = Column(Float, nullable=True)
+    nurses_on_duty = Column(Float, nullable=True)
+    nurses_required = Column(Float, nullable=True)
+    oxygen_stock_hours = Column(Float, nullable=True)
+    blood_a_pos = Column(Float, nullable=True)
+    blood_a_neg = Column(Float, nullable=True)
+    blood_b_pos = Column(Float, nullable=True)
+    blood_b_neg = Column(Float, nullable=True)
+    blood_o_pos = Column(Float, nullable=True)
+    blood_o_neg = Column(Float, nullable=True)
+    blood_ab_pos = Column(Float, nullable=True)
+    blood_ab_neg = Column(Float, nullable=True)
+    # Upload provenance: rows from a batch can be rolled back; a row replaced by
+    # a later upload is kept (superseded) so rollback can restore it.
+    batch_id = Column(Integer, nullable=True, index=True)
+    superseded_by_batch = Column(Integer, nullable=True, index=True)
     created_at = Column(DateTime, default=utc_now)
 
     def to_dict(self):
-        return {
+        data = {
             "date": self.date,
             "department": self.department,
             "admissions": self.admissions,
@@ -174,7 +204,11 @@ class ResourceSnapshot(Base):
             "icu_occupancy": self.icu_occupancy,
             "doctor_workload": self.doctor_workload,
             "staff_workload": self.staff_workload,
+            "batch_id": self.batch_id,
         }
+        for col in OPTIONAL_RESOURCE_COLUMNS:
+            data[col] = getattr(self, col)
+        return data
 
 
 class HistoricalEvent(Base):
@@ -338,4 +372,88 @@ class DecisionOutcome(Base):
             "risk_score_delta": self.risk_score_delta,
             "evaluation_summary": self.evaluation_summary,
             "status": self.status,
+        }
+
+
+class UploadBatch(Base):
+    __tablename__ = "upload_batches"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    filename = Column(String(255), nullable=False)
+    uploaded_by = Column(String(100), nullable=False)
+    uploaded_at = Column(DateTime, default=utc_now)
+    row_count = Column(Integer, default=0)
+    status = Column(String(30), default="committed")  # committed, rolled_back
+    date_min = Column(String(50), nullable=True)
+    date_max = Column(String(50), nullable=True)
+    departments = Column(Text, nullable=True)
+    dropped_columns = Column(Text, nullable=True)  # personal fields removed on upload
+    rolled_back_by = Column(String(100), nullable=True)
+    rolled_back_at = Column(DateTime, nullable=True)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "filename": self.filename,
+            "uploaded_by": self.uploaded_by,
+            "uploaded_at": self.uploaded_at.isoformat() if self.uploaded_at else None,
+            "row_count": self.row_count,
+            "status": self.status,
+            "date_min": self.date_min,
+            "date_max": self.date_max,
+            "departments": [d for d in (self.departments or "").split(",") if d],
+            "dropped_columns": [d for d in (self.dropped_columns or "").split(",") if d],
+            "rolled_back_by": self.rolled_back_by,
+            "rolled_back_at": self.rolled_back_at.isoformat() if self.rolled_back_at else None,
+        }
+
+
+class AuditLog(Base):
+    __tablename__ = "audit_log"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    timestamp = Column(DateTime, default=utc_now, index=True)
+    username = Column(String(100), index=True, nullable=False)
+    role = Column(String(50), nullable=True)
+    action = Column(String(60), index=True, nullable=False)
+    entity_type = Column(String(60), nullable=True)
+    entity_id = Column(String(100), nullable=True)
+    details = Column(Text, nullable=True)
+    ip_address = Column(String(64), nullable=True)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "timestamp": self.timestamp.isoformat() if self.timestamp else None,
+            "username": self.username,
+            "role": self.role,
+            "action": self.action,
+            "entity_type": self.entity_type,
+            "entity_id": self.entity_id,
+            "details": self.details or "",
+            "ip_address": self.ip_address,
+        }
+
+
+class AlertState(Base):
+    """Persisted state for computed items: alert acknowledge/snooze and
+    recommendation approve/dismiss, keyed by the item's stable id."""
+    __tablename__ = "alert_state"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    item_id = Column(String(120), unique=True, index=True, nullable=False)
+    status = Column(String(30), nullable=False)  # acknowledged, snoozed, approved, dismissed
+    snoozed_until = Column(DateTime, nullable=True)
+    updated_by = Column(String(100), nullable=True)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
+    note = Column(Text, nullable=True)
+
+    def to_dict(self):
+        return {
+            "item_id": self.item_id,
+            "status": self.status,
+            "snoozed_until": self.snoozed_until.isoformat() if self.snoozed_until else None,
+            "updated_by": self.updated_by,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+            "note": self.note or "",
         }

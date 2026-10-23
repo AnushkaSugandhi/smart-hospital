@@ -38,7 +38,11 @@ import {
   recordDecision,
   runSimulation,
   searchHindsight,
+  getStoredUser,
+  clearSession,
+  onUnauthorized,
 } from "./services/api";
+import LoginPage from "./pages/LoginPage";
 
 const nav = [
   ["Overview", "overview", LayoutDashboard],
@@ -69,6 +73,13 @@ function Kpi({ title, value, unit, subtitle, status, info }) {
 }
 
 function App() {
+  const [user, setUser] = useState(getStoredUser());
+  useEffect(() => onUnauthorized(() => setUser(null)), []);
+  if (!user) return <LoginPage onLogin={setUser} />;
+  return <Dashboard currentUser={user} onLogout={() => { clearSession(); setUser(null); }} />;
+}
+
+function Dashboard({ currentUser, onLogout }) {
   const [page, setPage] = useState("overview");
   const [dashboard, setDashboard] = useState(null);
   const [history, setHistory] = useState([]);
@@ -95,11 +106,6 @@ function App() {
   const [metric, setMetric] = useState("admissions");
   const [error, setError] = useState("");
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [currentUser, setCurrentUser] = useState({
-    username: "admin",
-    role: "Chief Operations Officer",
-    full_name: "Dr. Sarah Chen",
-  });
 
   async function loadDashboard() {
     try {

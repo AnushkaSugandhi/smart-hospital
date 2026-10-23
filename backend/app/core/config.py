@@ -54,11 +54,15 @@ RISK_LEVELS = [
 ]
 
 # Additional resources (optional upload columns).
+# Supply-type metrics (lower is worse) use their own floors rather than the
+# utilisation bands above.
 LOW_STOCK = {
     "oxygen_hours_warning": 24.0,
     "oxygen_hours_critical": 12.0,
     "blood_units_warning": 10,
     "blood_units_critical": 5,
+    "nurse_coverage_warning_below": 100.0,  # % of required nurses on duty
+    "nurse_coverage_critical_below": 90.0,
 }
 BLOOD_GROUPS = ["a_pos", "a_neg", "b_pos", "b_neg", "o_pos", "o_neg", "ab_pos", "ab_neg"]
 

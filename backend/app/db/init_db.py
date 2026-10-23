@@ -1,6 +1,9 @@
 import logging
+from sqlalchemy import inspect, text
+from app.core.security import hash_password, is_hashed, normalize_role
 from app.db.database import Base, engine, SessionLocal
 from app.db.models import (
+    OPTIONAL_RESOURCE_COLUMNS,
     User,
     Department,
     Patient,
@@ -20,9 +23,53 @@ from app.seed.generate_data import generate_snapshots
 logger = logging.getLogger("smart_hospital.init_db")
 
 
+DEMO_USERS = [
+    # username, password, role, full name
+    ("admin", "admin123", "Admin", "Operations Command Director"),
+    ("analyst", "analyst123", "Analyst", "Capacity Planning Analyst"),
+    ("viewer", "viewer123", "Viewer", "Ward Coordinator"),
+]
+
+
+def migrate_columns():
+    """Add columns that exist on models but not yet in the database.
+
+    create_all() only creates missing tables, so existing PostgreSQL/SQLite
+    databases need this for new nullable columns.
+    """
+    inspector = inspect(engine)
+    existing_tables = set(inspector.get_table_names())
+    with engine.begin() as conn:
+        for table in Base.metadata.sorted_tables:
+            if table.name not in existing_tables:
+                continue
+            present = {c["name"] for c in inspector.get_columns(table.name)}
+            for column in table.columns:
+                if column.name in present:
+                    continue
+                col_type = column.type.compile(dialect=engine.dialect)
+                conn.execute(text(f'ALTER TABLE {table.name} ADD COLUMN {column.name} {col_type}'))
+                logger.info("Added column %s.%s", table.name, column.name)
+
+
+def secure_users(db):
+    """Hash any plaintext passwords, map legacy roles, ensure demo role users."""
+    for user in db.query(User).all():
+        if not is_hashed(user.password_hash):
+            user.password_hash = hash_password(user.password_hash)
+        user.role = normalize_role(user.role)
+    existing = {u.username for u in db.query(User).all()}
+    for username, password, role, full_name in DEMO_USERS:
+        if username not in existing:
+            db.add(User(username=username, email=f"{username}@vgh.hospital",
+                        password_hash=hash_password(password), role=role, full_name=full_name))
+    db.commit()
+
+
 def init_database():
-    """Create all 13 tables and seed initial operational records if empty."""
+    """Create tables, migrate new columns and seed initial records if empty."""
     Base.metadata.create_all(bind=engine)
+    migrate_columns()
     db = SessionLocal()
     try:
         # 1. Departments
@@ -38,12 +85,10 @@ def init_database():
 
         # 2. Users
         if db.query(User).count() == 0:
-            users = [
-                User(username="admin", email="admin@vgh.hospital", password_hash="admin123", role="Administrator", full_name="Operations Command Director"),
-                User(username="cmo", email="cmo@vgh.hospital", password_hash="admin123", role="Chief Medical Officer", full_name="Dr. Sarah Chen"),
-            ]
-            db.add_all(users)
+            db.add(User(username="cmo", email="cmo@vgh.hospital", password_hash=hash_password("admin123"),
+                        role="Analyst", full_name="Dr. Sarah Chen"))
             db.commit()
+        secure_users(db)
 
         # 3. Doctors
         if db.query(Doctor).count() == 0:
@@ -101,6 +146,7 @@ def init_database():
                     icu_occupancy=float(s["icu_occupancy"]),
                     doctor_workload=float(s["doctor_workload"]),
                     staff_workload=float(s["staff_workload"]),
+                    **{c: float(s[c]) for c in OPTIONAL_RESOURCE_COLUMNS if s.get(c) is not None},
                 ))
             db.commit()
 

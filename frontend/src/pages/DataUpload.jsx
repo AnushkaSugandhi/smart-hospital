@@ -1,13 +1,6 @@
 import React, { useState } from "react";
-import { commitUpload } from "../services/api";
+import { commitUpload, profileUpload } from "../services/api";
 import { CheckCircle2, UploadCloud, Database, AlertCircle, FileSpreadsheet } from "lucide-react";
-
-const API_BASE =
-  import.meta.env.VITE_API_BASE_URL ||
-  (typeof window !== "undefined" && window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1"
-    ? "/api/v1"
-    : "http://127.0.0.1:8000/api/v1");
-
 
 function DataUpload({ onDataCommitted }) {
   const [file, setFile] = useState(null);
@@ -28,18 +21,10 @@ function DataUpload({ onDataCommitted }) {
     setReport(null);
     setSaveSuccess(null);
 
-    const formData = new FormData();
-    formData.append("file", file);
-
     try {
-      const response = await fetch(`${API_BASE}/uploads/profile`, {
-        method: "POST",
-        body: formData,
-      });
+      const result = await profileUpload(file);
 
-      const result = await response.json();
-
-      if (!response.ok || result.error) {
+      if (result.error) {
         throw new Error(result.error || "Upload validation failed.");
       }
 

@@ -3,6 +3,9 @@ from fastapi.testclient import TestClient
 from app.main import app
 
 client = TestClient(app)
+# Endpoints now enforce role-based access; run the original suite as an Admin.
+_token = client.post("/api/v1/auth/login", json={"username": "admin", "password": "admin123"}).json()["token"]
+client.headers.update({"Authorization": f"Bearer {_token}"})
 
 
 def test_root():
