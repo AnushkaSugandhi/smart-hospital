@@ -1,0 +1,13 @@
+fastapi
+uvicorn[standard]
+pydantic
+pandas
+numpy
+statsmodels
+python-multipart
+openpyxl
+python-dotenv
+sqlalchemy
+psycopg2-binary; sys_platform != "win32"
+httpx
+pytest

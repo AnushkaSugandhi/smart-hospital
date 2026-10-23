@@ -1,0 +1,6 @@
+date,department,admissions,emergency_cases,bed_occupancy,icu_occupancy,doctor_workload,staff_workload
+2026-09-28,Emergency,72,16,0.84,0.80,10.4,8.2
+2026-09-29,Emergency,75,17,0.86,0.82,10.8,8.5
+2026-09-30,Emergency,78,18,0.88,0.84,11.2,8.8
+2026-10-01,Emergency,80,19,0.90,0.86,11.7,9.0
+2026-10-02,Emergency,82,20,0.92,0.88,12.1,9.4
