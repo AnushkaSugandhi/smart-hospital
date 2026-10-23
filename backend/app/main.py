@@ -10,7 +10,21 @@ from sqlalchemy.orm import Session
 
 from app.db.database import get_db, engine
 from app.db.init_db import init_database
-from app.db.models import ResourceSnapshot, HistoricalEvent, DecisionRecord, User
+from app.db.models import (
+    User,
+    Department,
+    Patient,
+    Doctor,
+    Staff,
+    Bed,
+    ResourceSnapshot,
+    HistoricalEvent,
+    ForecastRecord,
+    AlertRecord,
+    RecommendationRecord,
+    DecisionRecord,
+    DecisionOutcome,
+)
 from app.seed.generate_data import SNAPSHOTS
 from app.services.cascade_service import analyze_cascade
 from app.services.forecast_service import forecast_values
@@ -588,3 +602,53 @@ def get_current_user(db: Session = Depends(get_db)):
         "role": user.role,
         "full_name": user.full_name,
     }
+
+
+# Operational Resource Entity Endpoints (Phase 12 Complete Database)
+@app.get("/api/v1/departments")
+def get_departments(db: Session = Depends(get_db)):
+    """Retrieve all hospital departments with capacity allocations."""
+    departments = db.query(Department).all()
+    return [d.to_dict() for d in departments]
+
+
+@app.get("/api/v1/patients")
+def get_patients(db: Session = Depends(get_db)):
+    """Retrieve currently admitted and triaged patients."""
+    patients = db.query(Patient).all()
+    return [p.to_dict() for p in patients]
+
+
+@app.get("/api/v1/doctors")
+def get_doctors(db: Session = Depends(get_db)):
+    """Retrieve active physicians and current operational workload scores."""
+    doctors = db.query(Doctor).all()
+    return [d.to_dict() for d in doctors]
+
+
+@app.get("/api/v1/staff")
+def get_staff(db: Session = Depends(get_db)):
+    """Retrieve nursing and clinical staff allocations."""
+    staff = db.query(Staff).all()
+    return [s.to_dict() for s in staff]
+
+
+@app.get("/api/v1/beds")
+def get_beds(db: Session = Depends(get_db)):
+    """Retrieve hospital bed registry and occupancy state."""
+    beds = db.query(Bed).all()
+    return [b.to_dict() for b in beds]
+
+
+@app.get("/api/v1/recommendations")
+def get_recommendations(db: Session = Depends(get_db)):
+    """Retrieve automated evidence-based operational recommendations."""
+    recs = db.query(RecommendationRecord).all()
+    return [r.to_dict() for r in recs]
+
+
+@app.get("/api/v1/decision-outcomes")
+def get_decision_outcomes(db: Session = Depends(get_db)):
+    """Retrieve post-intervention evaluated outcomes and delta metrics."""
+    outcomes = db.query(DecisionOutcome).all()
+    return [o.to_dict() for o in outcomes]

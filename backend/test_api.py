@@ -129,3 +129,35 @@ def test_upload_profile_and_commit():
     assert commit_res.status_code == 200
     assert commit_res.json()["status"] == "success"
     assert commit_res.json()["saved_count"] == 2
+
+
+def test_database_relational_entities():
+    # Verify all Phase 12 database tables are queryable
+    dept_res = client.get("/api/v1/departments")
+    assert dept_res.status_code == 200
+    assert len(dept_res.json()) >= 4
+
+    pat_res = client.get("/api/v1/patients")
+    assert pat_res.status_code == 200
+    assert len(pat_res.json()) >= 3
+
+    doc_res = client.get("/api/v1/doctors")
+    assert doc_res.status_code == 200
+    assert len(doc_res.json()) >= 4
+
+    staff_res = client.get("/api/v1/staff")
+    assert staff_res.status_code == 200
+    assert len(staff_res.json()) >= 3
+
+    beds_res = client.get("/api/v1/beds")
+    assert beds_res.status_code == 200
+    assert len(beds_res.json()) >= 5
+
+    rec_res = client.get("/api/v1/recommendations")
+    assert rec_res.status_code == 200
+    assert len(rec_res.json()) >= 1
+
+    outcomes_res = client.get("/api/v1/decision-outcomes")
+    assert outcomes_res.status_code == 200
+    assert len(outcomes_res.json()) >= 1
+
